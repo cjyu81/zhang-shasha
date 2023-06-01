@@ -31,7 +31,6 @@ def simple_trees():
         )
     return A, B
 
-
 def test_nodes():
     A, B = [compare.AnnotatedTree(t, t.get_children) for t in simple_trees()]
     for i, nid in enumerate(reversed(A.ids)):
@@ -59,3 +58,18 @@ def test_keyroots():
     A, B = [compare.AnnotatedTree(t, t.get_children) for t in simple_trees()]
     assert A.keyroots == [2, 4, 5]
     assert B.keyroots == [1, 4, 5]
+
+def main():
+    print("Starting Edit Script Test")
+    A,B = simple_trees()
+    test_nodes()
+    test_left_most_descendent()
+    test_keyroots()
+    print("Finished asserts")
+    dist, ops, locs = compare.simple_distance(A,B,return_operations=True)
+    print("Dist: ", dist)
+    print("Ops: ", ops)
+    print("Locs: ", locs)
+
+if __name__ == "__main__":
+    main()

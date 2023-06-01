@@ -218,6 +218,9 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
     size_b = len(B.nodes)
     treedists = zeros((size_a, size_b), float)
     operations = [[[] for _ in range(size_b)] for _ in range(size_a)]
+    locations = [[[] for _ in range(size_b)] for _ in range(size_a)]
+    values = [[[] for _ in range(size_b)] for _ in range(size_a)]
+     
 
     def treedist(i, j):
         Al = A.lmds
@@ -229,6 +232,8 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
         n = j - Bl[j] + 2
         fd = zeros((m,n), float)
         partial_ops = [[[] for _ in range(n)] for _ in range(m)]
+        partial_loc = [[[] for _ in range(n)] for _ in range(m)]
+        partial_val = [[[] for _ in range(n)] for _ in range(m)]
 
         ioff = Al[i] - 1
         joff = Bl[j] - 1
@@ -238,11 +243,15 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
             fd[x][0] = fd[x-1][0] + remove_cost(node)
             op = Operation(REMOVE, node)
             partial_ops[x][0] = partial_ops[x-1][0] + [op]
+            partial_loc[x][0] = partial_loc[x-1][0] + [(-1,x+ioff)]
+            partial_val[x][0] = partial_val[x-1][0] + [node]
         for y in range(1, n): # δ(θ, l(j1)..j) = δ(θ, l(j1)..j-1) + γ(λ → w)
             node = Bn[y+joff]
             fd[0][y] = fd[0][y-1] + insert_cost(node)
             op = Operation(INSERT, arg2=node)
             partial_ops[0][y] = partial_ops[0][y-1] + [op]
+            partial_loc[0][y] = partial_loc[0][y-1] + [(-2,y+joff)]
+            partial_val[x][0] = partial_val[x-1][0] + [node]
 
         for x in range(1, m):  # the plus one is for the xrange impl
             for y in range(1, n):
@@ -267,15 +276,24 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
                     if min_index == 0:
                         op = Operation(REMOVE, node1)
                         partial_ops[x][y] = partial_ops[x-1][y] + [op]
+                        partial_loc[x][y] = partial_loc[x-1][y] + [(-1,x+ioff)]
+                        partial_val[x][y] = partial_val[x-1][y] + [node1]
                     elif min_index == 1:
                         op = Operation(INSERT, arg2=node2)
                         partial_ops[x][y] = partial_ops[x][y - 1] + [op]
+                        partial_loc[x][y] = partial_loc[x][y - 1] + [(-2,y+joff)]
+                        partial_val[x][y] = partial_val[x-1][y] + [node2]
+                        #print("Run once")
                     else:
                         op_type = MATCH if fd[x][y] == fd[x-1][y-1] else UPDATE
                         op = Operation(op_type, node1, node2)
                         partial_ops[x][y] = partial_ops[x - 1][y - 1] + [op]
+                        partial_loc[x][y] = partial_loc[x - 1][y - 1] + [(x+ioff,y+joff)]#x+ioff=y+joff so doesn't matter
+                        partial_val[x][y] = partial_val[x-1][y] + [node2]#only node 2 since node is being replace by node2
 
                     operations[x + ioff][y + joff] = partial_ops[x][y]
+                    locations[x + ioff][y + joff] = partial_loc[x][y]
+                    values[x + ioff][y + joff] = partial_val[x][y]
                     treedists[x+ioff][y+joff] = fd[x][y]
                 else:
                     #                   +-
@@ -294,18 +312,93 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
                     if min_index == 0:
                         op = Operation(REMOVE, node1)
                         partial_ops[x][y] = partial_ops[x-1][y] + [op]
+                        partial_loc[x][y] = partial_loc[x-1][y] + [(-1,x+ioff)]
+                        partial_val[x][y] = partial_val[x-1][y] + [node1]
                     elif min_index == 1:
                         op = Operation(INSERT, arg2=node2)
                         partial_ops[x][y] = partial_ops[x][y-1] + [op]
+                        partial_loc[x][y] = partial_loc[x][y-1] + [(-2,y+joff)]
+                        partial_val[x][y] = partial_val[x-1][y] + [node2]
                     else:
-                        partial_ops[x][y] = partial_ops[p][q] + \
-                            operations[x+ioff][y+joff]
+                        partial_ops[x][y] = partial_ops[p][q] + operations[x+ioff][y+joff]
+                        partial_loc[x][y] = partial_loc[p][q] + locations[x+ioff][y+joff]
+                        partial_val[x][y] = partial_val[p][q] + locations[x+ioff][y+joff]
 
     for i in A.keyroots:
         for j in B.keyroots:
             treedist(i, j)
 
     if return_operations:
-        return treedists[-1][-1], operations[-1][-1]
+        return treedists[-1][-1], operations[-1][-1], locations[-1][-1], values[-1][-1]
     else:
         return treedists[-1][-1]
+
+
+
+def simple_trees():
+    A = (
+        Node("f")
+            .addkid(Node("d")
+                .addkid(Node("a"))
+                .addkid(Node("c")
+                    .addkid(Node("b"))))
+            .addkid(Node("e"))
+        )
+    B = (
+        Node("f")
+            .addkid(Node("c")
+                .addkid(Node("d")
+                    .addkid(Node("a"))
+                    .addkid(Node("b"))))
+            .addkid(Node("e"))
+        )
+    return A, B
+
+def tree2():
+    A = (
+        Node("f")
+            .addkid(Node("d")
+                .addkid(Node("a"))
+                .addkid(Node("c")
+                    .addkid(Node("b"))))
+            .addkid(Node("e"))
+        )
+    B = (
+        Node("f2")
+            .addkid(Node("d")
+                .addkid(Node("a"))
+                .addkid(Node("c")
+                    .addkid(Node("b2"))))
+            .addkid(Node("e2"))
+        )
+    return A, B
+
+def tree3():
+    A = (
+        Node("a")
+            .addkid(Node("c"))
+        )
+    B = (
+        Node("a")
+            .addkid(Node("b")
+                .addkid(Node("d")
+                    .addkid(Node("e"))
+                    .addkid(Node("f"))))
+            .addkid(Node("c"))
+        )
+    return A, B
+
+def main():
+    print("Starting Edit Script Test")
+    #A,B = simple_trees()
+    A,B = tree3()
+    print("Finished asserts")
+    dist, ops, locs, vals = simple_distance(A,B,return_operations=True)
+    print("Dist: ", dist)
+    print("Ops: ", ops)
+    print("Locs: ", locs)
+    labelz = [val.label for val in vals]
+    print("Vals: ", labelz)
+
+if __name__ == "__main__":
+    main()
